@@ -54,8 +54,9 @@ class GHAD_Admin {
             'deploy_key_id'     => $existing['deploy_key_id'] ?? '',
         ];
 
-        if (!empty($input['client_secret']) && $input['client_secret'] !== ($existing['client_secret'] ?? '')) {
-            $output['client_secret'] = GHAD_Crypto::encrypt($input['client_secret']);
+        $submitted_secret = $input['client_secret'] ?? '';
+        if (!empty($submitted_secret) && '********' !== $submitted_secret) {
+            $output['client_secret'] = GHAD_Crypto::encrypt($submitted_secret);
         } elseif (!empty($existing['client_secret'])) {
             $output['client_secret'] = $existing['client_secret'];
         }
