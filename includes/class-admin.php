@@ -18,6 +18,8 @@ class GHAD_Admin {
         add_action('wp_ajax_ghad_fetch_repos', [$this, 'ajax_fetch_repos']);
         add_action('wp_ajax_ghad_setup_deploy_key', [$this, 'ajax_setup_deploy_key']);
         add_action('wp_ajax_ghad_create_webhook', [$this, 'ajax_create_webhook']);
+        add_action('wp_ajax_ghad_save_repo', [$this, 'ajax_save_repo']);
+        add_action('wp_ajax_ghad_detect_themes', [$this, 'ajax_detect_themes']);
         add_action('admin_enqueue_scripts', [$this, 'admin_assets']);
     }
 
@@ -259,6 +261,45 @@ class GHAD_Admin {
         ]);
     }
 
+    public function ajax_save_repo() {
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Unauthorized.');
+        }
+        check_ajax_referer('ghad_save_repo');
+
+        $settings = get_option(GHAD_OPTION_KEY, []);
+        $settings['repo_full_name'] = sanitize_text_field($_POST['repo_full_name'] ?? '');
+        $settings['repo_ssh_url']   = sanitize_text_field($_POST['repo_ssh_url'] ?? '');
+        $settings['branch']         = sanitize_text_field($_POST['branch'] ?? 'main');
+        $settings['local_path']     = sanitize_text_field($_POST['local_path'] ?? '');
+        update_option(GHAD_OPTION_KEY, $settings);
+
+        wp_send_json_success(['message' => 'Repo settings saved.']);
+    }
+
+    public function ajax_detect_themes() {
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Unauthorized.');
+        }
+        check_ajax_referer('ghad_detect_themes');
+
+        $themes = wp_get_themes();
+        $theme_root = get_theme_root();
+        $data = [];
+        foreach ($themes as $slug => $theme) {
+            $data[] = [
+                'slug' => $slug,
+                'name' => $theme->get('Name'),
+                'path' => trailingslashit($theme_root) . $slug,
+            ];
+        }
+
+        wp_send_json_success([
+            'theme_root' => $theme_root,
+            'themes'     => $data,
+        ]);
+    }
+
     public function render_page() {
         if (!current_user_can('manage_options')) {
             wp_die('Unauthorized.');
@@ -355,48 +396,50 @@ class GHAD_Admin {
     }
 
     private function render_connected_section($settings, $webhook_url) {
-        $repo_name = $settings['repo_full_name'] ?? '';
-        $has_key   = !empty($settings['ssh_key']);
-        $has_hook  = !empty($settings['webhook_id']);
-        $branch    = $settings['branch'] ?? 'main';
+        $repo_name  = $settings['repo_full_name'] ?? '';
+        $has_key    = !empty($settings['ssh_key']);
+        $has_hook   = !empty($settings['webhook_id']);
+        $branch     = $settings['branch'] ?? 'main';
         $local_path = $settings['local_path'] ?? '';
         ?>
         <h2>2. Repository</h2>
 
-        <table class="form-table" role="presentation">
-            <tr>
-                <th scope="row"><label for="ghad_repo">Select Repo</label></th>
-                <td>
-                    <select id="ghad_repo" name="<?php echo esc_attr(GHAD_OPTION_KEY); ?>[repo_full_name]" style="min-width:350px;">
-                        <option value="">— Select a repository —</option>
-                        <?php if ($repo_name): ?>
-                            <option value="<?php echo esc_attr($repo_name); ?>" selected><?php echo esc_html($repo_name); ?></option>
-                        <?php endif; ?>
-                    </select>
-                    <input type="hidden" id="ghad_repo_ssh_url" name="<?php echo esc_attr(GHAD_OPTION_KEY); ?>[repo_ssh_url]"
-                           value="<?php echo esc_attr($settings['repo_ssh_url'] ?? ''); ?>">
-                    <button type="button" id="ghad_refresh_repos" class="button" style="margin-left:6px;">Refresh</button>
-                    <p class="description">Select a repo from your GitHub account.</p>
-                </td>
-            </tr>
-            <tr>
-                <th scope="row"><label for="ghad_branch">Branch</label></th>
-                <td>
-                    <input type="text" id="ghad_branch" name="<?php echo esc_attr(GHAD_OPTION_KEY); ?>[branch]"
-                           value="<?php echo esc_attr($branch); ?>" class="regular-text">
-                </td>
-            </tr>
-            <tr>
-                <th scope="row"><label for="ghad_local_path">Local Path</label></th>
-                <td>
-                    <input type="text" id="ghad_local_path" name="<?php echo esc_attr(GHAD_OPTION_KEY); ?>[local_path]"
-                           value="<?php echo esc_attr($local_path); ?>" class="regular-text code" style="width:450px;"
-                           placeholder="/home/user/public_html/wp-content/themes/my-theme">
-                </td>
-            </tr>
-        </table>
-
-        <p><button type="button" id="ghad_save_repo" class="button button-primary">Save Repo Settings</button></p>
+        <div id="ghad-repo-settings">
+            <table class="form-table" role="presentation">
+                <tr>
+                    <th scope="row"><label for="ghad_repo">Select Repo</label></th>
+                    <td>
+                        <select id="ghad_repo" style="min-width:350px;" data-selected="<?php echo esc_attr($repo_name); ?>">
+                            <option value="">— Select a repository —</option>
+                        </select>
+                        <input type="hidden" id="ghad_repo_ssh_url" value="<?php echo esc_attr($settings['repo_ssh_url'] ?? ''); ?>">
+                        <button type="button" id="ghad_refresh_repos" class="button" style="margin-left:6px;">Refresh</button>
+                        <p class="description">Select a repo from your GitHub account.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="ghad_branch">Branch</label></th>
+                    <td>
+                        <input type="text" id="ghad_branch" value="<?php echo esc_attr($branch); ?>" class="regular-text">
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="ghad_local_path">Local Path</label></th>
+                    <td>
+                        <input type="text" id="ghad_local_path" value="<?php echo esc_attr($local_path); ?>"
+                               class="regular-text code" style="width:450px;"
+                               placeholder="<?php echo esc_attr(trailingslashit(get_theme_root()) . 'your-theme'); ?>">
+                        <button type="button" id="ghad_detect_path" class="button" style="margin-left:6px;">Detect Themes</button>
+                        <div id="ghad_theme_list" style="display:none;margin-top:8px;max-height:200px;overflow-y:auto;background:#f6f7f7;border:1px solid #c3c4c7;border-radius:4px;padding:4px;"></div>
+                        <p class="description">Absolute path to the repo directory on your server.</p>
+                    </td>
+                </tr>
+            </table>
+            <p>
+                <button type="button" id="ghad_save_repo" class="button button-primary">Save Repo Settings</button>
+                <span id="ghad_repo_status" style="margin-left:10px;font-style:italic;"></span>
+            </p>
+        </div>
 
         <hr>
 
@@ -560,10 +603,12 @@ class GHAD_Admin {
 
         wp_enqueue_script('ghad-admin', GHAD_PLUGIN_URL . 'assets/admin.js', ['jquery'], GHAD_VERSION, true);
         wp_localize_script('ghad-admin', 'ghad', [
-            'ajax_url' => admin_url('admin-ajax.php'),
+            'ajax_url'         => admin_url('admin-ajax.php'),
             'nonce_fetch_repos' => wp_create_nonce('ghad_fetch_repos'),
             'nonce_setup_key'   => wp_create_nonce('ghad_setup_deploy_key'),
             'nonce_create_hook' => wp_create_nonce('ghad_create_webhook'),
+            'nonce_save_repo'   => wp_create_nonce('ghad_save_repo'),
+            'nonce_detect_themes' => wp_create_nonce('ghad_detect_themes'),
         ]);
         ?>
         <style>
