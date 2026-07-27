@@ -20,6 +20,7 @@ class GHAD_Updater {
         $this->github_url  = 'https://github.com/' . $this->github_repo;
 
         add_filter('pre_set_site_transient_update_plugins', [$this, 'check_update']);
+        add_filter('site_transient_update_plugins', [$this, 'check_update']);
         add_filter('plugins_api', [$this, 'plugin_info'], 20, 3);
     }
 

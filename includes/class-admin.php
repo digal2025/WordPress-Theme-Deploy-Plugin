@@ -15,6 +15,7 @@ class GHAD_Admin {
         add_action('admin_post_ghad_manual_deploy', [$this, 'manual_deploy']);
         add_action('admin_post_ghad_clear_log', [$this, 'clear_log']);
         add_action('admin_post_ghad_disconnect', [$this, 'disconnect']);
+        add_action('admin_post_ghad_force_check', [$this, 'force_check']);
         add_action('wp_ajax_ghad_fetch_repos', [$this, 'ajax_fetch_repos']);
         add_action('wp_ajax_ghad_setup_deploy_key', [$this, 'ajax_setup_deploy_key']);
         add_action('wp_ajax_ghad_create_webhook', [$this, 'ajax_create_webhook']);
@@ -135,6 +136,19 @@ class GHAD_Admin {
         update_option(GHAD_OPTION_KEY, $settings);
 
         wp_redirect(add_query_arg('ghad_msg', 'disconnected', wp_get_referer()));
+        exit;
+    }
+
+    public function force_check() {
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized.');
+        }
+        check_admin_referer('ghad_force_check');
+
+        delete_transient('ghad_github_release');
+        wp_update_plugins();
+
+        wp_redirect(add_query_arg('ghad_msg', 'force_check_ok', wp_get_referer()));
         exit;
     }
 
@@ -474,6 +488,7 @@ class GHAD_Admin {
     }
 
     private function render_deploy_section($settings) {
+        $plugin_version = defined('GHAD_VERSION') ? GHAD_VERSION : '?';
         ?>
         <h2>Manual Deploy</h2>
         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom:20px;">
@@ -481,6 +496,14 @@ class GHAD_Admin {
             <?php wp_nonce_field('ghad_manual_deploy'); ?>
             <p>Run a deploy now regardless of webhook.</p>
             <?php submit_button('Run Deploy Now', 'primary', 'submit', false); ?>
+        </form>
+
+        <h2>Plugin Version: <?php echo esc_html($plugin_version); ?></h2>
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+            <input type="hidden" name="action" value="ghad_force_check">
+            <?php wp_nonce_field('ghad_force_check'); ?>
+            <p>Force WordPress to check GitHub for a newer version of this plugin.</p>
+            <?php submit_button('Check for Updates Now', 'secondary', 'submit', false); ?>
         </form>
         <?php
     }
@@ -594,6 +617,7 @@ class GHAD_Admin {
             'oauth_no_creds'      => ['Save your OAuth Client ID and Secret first.', 'warning'],
             'oauth_state_mismatch' => ['OAuth state mismatch. Try again.', 'error'],
             'disconnected'        => ['Disconnected from GitHub.', 'info'],
+            'force_check_ok'      => ['Update check complete. If a newer release exists on GitHub, you will see it on the Plugins page.', 'info'],
         ];
         if (isset($notices[$msg])) {
             add_action('admin_notices', function () use ($notices, $msg) {
