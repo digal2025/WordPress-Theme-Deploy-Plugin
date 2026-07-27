@@ -428,6 +428,7 @@ class GHAD_Admin {
                         </select>
                         <input type="hidden" id="ghad_repo_ssh_url" value="<?php echo esc_attr($settings['repo_ssh_url'] ?? ''); ?>">
                         <button type="button" id="ghad_refresh_repos" class="button" style="margin-left:6px;">Refresh</button>
+                        <span id="ghad_refresh_status" style="margin-left:8px;font-style:italic;"></span>
                         <p class="description">Select a repo from your GitHub account.</p>
                     </td>
                 </tr>
@@ -444,6 +445,7 @@ class GHAD_Admin {
                                class="regular-text code" style="width:450px;"
                                placeholder="<?php echo esc_attr(trailingslashit(get_theme_root()) . 'your-theme'); ?>">
                         <button type="button" id="ghad_detect_path" class="button" style="margin-left:6px;">Detect Themes</button>
+                        <span id="ghad_detect_status" style="margin-left:8px;font-style:italic;"></span>
                         <div id="ghad_theme_list" style="display:none;margin-top:8px;max-height:200px;overflow-y:auto;background:#f6f7f7;border:1px solid #c3c4c7;border-radius:4px;padding:4px;"></div>
                         <p class="description">Absolute path to the repo directory on your server.</p>
                     </td>
@@ -646,11 +648,10 @@ class GHAD_Admin {
             }
             .ghad-badge--success { background: #d4edda; color: #155724; }
             .ghad-badge--failed  { background: #f8d7da; color: #721c24; }
-            #ghad_key_status, #ghad_hook_status { font-style: italic; }
-            #ghad_key_status.ghad-success,
-            #ghad_hook_status.ghad-success { color: #46b450; font-style: normal; }
-            #ghad_key_status.ghad-error,
-            #ghad_hook_status.ghad-error { color: #b32d2e; font-style: normal; }
+            .ghad-success { color: #46b450; font-style: normal; }
+            .ghad-error { color: #b32d2e; font-style: normal; }
+            #ghad_key_status, #ghad_hook_status, #ghad_refresh_status, #ghad_detect_status { font-style: italic; }
+            #ghad_repo_status { font-style: italic; }
         </style>
         <?php
     }
