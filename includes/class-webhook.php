@@ -56,9 +56,9 @@ class GHAD_Webhook {
             return $this->respond("Branch {$branch} does not match configured branch {$settings['branch']}.", 200);
         }
 
-        $repo_url   = $settings['repo_url'];
+        $repo_url   = $settings['repo_ssh_url'];
         $local_path = $settings['local_path'];
-        $ssh_key    = $this->decrypt_ssh_key($settings['ssh_key']);
+        $ssh_key    = GHAD_Crypto::decrypt($settings['ssh_key'] ?? '');
 
         if (empty($repo_url) || empty($local_path) || empty($ssh_key)) {
             return $this->respond('Plugin settings incomplete.', 500);
@@ -103,51 +103,7 @@ class GHAD_Webhook {
         update_option(GHAD_LOG_KEY, $logs);
     }
 
-    private function decrypt_ssh_key($encrypted) {
-        if (empty($encrypted)) {
-            return '';
-        }
-
-        if (0 !== strpos($encrypted, 'ghad_enc:')) {
-            return $encrypted;
-        }
-
-        $data = base64_decode(substr($encrypted, 9));
-        if (false === $data || strlen($data) < 48) {
-            return '';
-        }
-
-        $iv  = substr($data, 0, 16);
-        $tag = substr($data, 16, 16);
-        $key_cipher = substr($data, 32);
-
-        $key = $this->encryption_key();
-
-        $decrypted = openssl_decrypt($key_cipher, 'AES-256-GCM', $key, OPENSSL_RAW_DATA, $iv, $tag);
-        return false === $decrypted ? '' : $decrypted;
-    }
-
     private function respond($msg, $code = 200) {
         return new WP_REST_Response(['message' => $msg], $code);
-    }
-
-    public static function encrypt_ssh_key($plaintext) {
-        if (empty($plaintext)) {
-            return '';
-        }
-
-        $key  = self::encryption_key();
-        $iv   = random_bytes(16);
-        $tag  = '';
-
-        $cipher = openssl_encrypt($plaintext, 'AES-256-GCM', $key, OPENSSL_RAW_DATA, $iv, $tag);
-
-        $data = 'ghad_enc:' . base64_encode($iv . $tag . $cipher);
-        return $data;
-    }
-
-    private static function encryption_key() {
-        $salt = defined('AUTH_SALT') ? AUTH_SALT : wp_salt('auth');
-        return hash('sha256', $salt . 'ghad-encryption-key', true);
     }
 }

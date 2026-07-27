@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: GitHub Auto Deploy
- * Plugin URI:  https://github.com/digal2025/github-auto-deploy
- * Description: Auto-deploy themes/plugins from GitHub on push via webhook. Supports SSH key auth and multiple repos.
- * Version:     1.0.0
+ * Plugin URI:  https://github.com/digal2025/WordPress-Theme-Deploy-Plugin
+ * Description: Auto-deploy themes/plugins from GitHub on push. OAuth-based setup — just connect your GitHub account, pick a repo, and go.
+ * Version:     2.0.0
  * Author:      Simplicity Digital
  * License:     GPL-2.0+
  * Text Domain: github-auto-deploy
@@ -11,13 +11,15 @@
 
 defined('ABSPATH') || exit;
 
-define('GHAD_VERSION', '1.0.0');
+define('GHAD_VERSION', '2.0.0');
 define('GHAD_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GHAD_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GHAD_OPTION_KEY', 'ghad_settings');
 define('GHAD_LOG_KEY', 'ghad_deploy_log');
 
+require_once GHAD_PLUGIN_DIR . 'includes/class-crypto.php';
 require_once GHAD_PLUGIN_DIR . 'includes/class-deployer.php';
+require_once GHAD_PLUGIN_DIR . 'includes/class-github-api.php';
 require_once GHAD_PLUGIN_DIR . 'includes/class-webhook.php';
 require_once GHAD_PLUGIN_DIR . 'includes/class-admin.php';
 
@@ -39,11 +41,19 @@ class GitHub_Auto_Deploy {
 
     public static function activate() {
         $defaults = [
-            'repo_url'       => '',
+            'client_id'      => '',
+            'client_secret'  => '',
+            'access_token'   => '',
+            'github_user'    => '',
+            'repo_full_name' => '',
+            'repo_ssh_url'   => '',
             'branch'         => 'main',
             'local_path'     => '',
             'ssh_key'        => '',
+            'ssh_key_title'  => '',
             'webhook_secret' => '',
+            'webhook_id'     => '',
+            'deploy_key_id'  => '',
         ];
         if (!get_option(GHAD_OPTION_KEY, false)) {
             add_option(GHAD_OPTION_KEY, $defaults);

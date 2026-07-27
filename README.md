@@ -1,154 +1,114 @@
 # GitHub Auto Deploy
 
-A WordPress plugin that automatically deploys themes/plugins from GitHub on push. Uses SSH key authentication and webhook-based triggering. Designed to be reusable across any WordPress site.
+A WordPress plugin that automatically deploys themes/plugins from GitHub on push. OAuth-based setup — just connect your GitHub account, pick a repo, and go. No manual SSH key or webhook configuration needed.
 
 ## How It Works
 
-1. GitHub sends a webhook to your WordPress site when you push to a branch
-2. The plugin verifies the payload via HMAC-SHA256 signature
-3. It runs `git fetch && git reset --hard origin/<branch>` (or `git clone` if first time)
-4. The SSH private key is stored encrypted (AES-256-GCM) in `wp_options`
+1. **Connect** — Authorize via GitHub OAuth (one click)
+2. **Pick** — Select a repo from your account dropdown
+3. **Generate** — Plugin creates an SSH deploy key and installs it on GitHub automatically
+4. **Webhook** — Plugin creates the webhook on GitHub automatically
+5. **Deploy** — Every push to your branch auto-deploys via `git fetch && git reset --hard`
 
 ## Requirements
 
 - WordPress 5.0+
 - PHP 7.4+ with OpenSSL extension
 - Git installed on the server
-- `proc_open` enabled (for running git commands)
-- SSH key with access to your GitHub repo
+- `proc_open` enabled
+- `exec()` enabled (for SSH key generation)
+- A [GitHub OAuth App](https://github.com/settings/developers)
 
-## Installation
+## Setup
 
-1. Upload the `github-auto-deploy` folder to `/wp-content/plugins/`
-2. Activate the plugin via WordPress **Plugins** page
-3. Go to **Tools → GitHub Deploy** to configure
+### 1. Create a GitHub OAuth App
 
-## Configuration
+1. Go to [GitHub Settings → Developer settings → OAuth Apps](https://github.com/settings/developers)
+2. Click **New OAuth App**
+3. Fill in:
+   - **Application name**: `My Site Deployer` (or anything)
+   - **Homepage URL**: Your WordPress site URL
+   - **Authorization callback URL**: The URL shown on the plugin settings page (copy it from there)
+4. Click **Register application**
+5. Copy the **Client ID** and **Client Secret**
 
-### Plugin Settings
+### 2. Install & Configure
 
-| Field | Description |
-|---|---|
-| **GitHub Repo URL (SSH)** | SSH URL like `git@github.com:user/repo.git` |
-| **Branch** | Branch that triggers deployment (default: `main`) |
-| **Local Path** | Absolute path to the repo on your server (e.g., `/home/user/public_html/wp-content/themes/my-theme`) |
-| **SSH Private Key** | Private key with access to the repo. Stored encrypted in the database. |
-| **Webhook Secret** | A secret string used to verify webhook payloads (HMAC-SHA256). Generate a strong one. |
+1. Upload `github-auto-deploy` to `/wp-content/plugins/`
+2. Activate the plugin
+3. Go to **Tools → GitHub Deploy**
+4. Enter your **Client ID** and **Client Secret** from the OAuth App
+5. Click **Connect with GitHub** → authorize the app
+6. Select a repo from the dropdown
+7. Set the **branch** and **local path** on your server
+8. Click **Generate & Add Deploy Key** — the plugin creates an SSH key and adds it as a deploy key
+9. Click **Create Webhook on GitHub** — the plugin registers the webhook for push events
 
-### GitHub Webhook Setup
-
-1. Copy the **Webhook URL** from the plugin's settings page
-2. Go to your GitHub repo → **Settings → Webhooks → Add webhook**
-3. Set the following:
-
-| Setting | Value |
-|---|---|
-| **Payload URL** | The webhook URL from the plugin page |
-| **Content type** | `application/json` |
-| **Secret** | Your webhook secret (must match the one in plugin settings) |
-| **SSL verification** | Enabled |
-| **Which events?** | **Just the push event** |
-
-4. Click **Add webhook**
-
-GitHub will send a `ping` event to test the connection. The plugin responds with "Pong — webhook is working". On subsequent pushes, it runs the deploy.
+That's it. Next push to your branch auto-deploys.
 
 ## Usage
 
 ### Auto-Deploy
 
-Once configured, every push to the configured branch automatically deploys the repo to the local path on your server.
+Every push to the configured branch triggers the webhook. The plugin runs `git fetch origin && git reset --hard origin/<branch>`.
 
 ### Manual Deploy
 
-Go to **Tools → GitHub Deploy** and click **Run Deploy Now** to trigger a deploy manually without a webhook.
+Click **Run Deploy Now** on the settings page to deploy without a webhook.
 
 ### Deployment Log
 
-Each deployment is logged with timestamp, status (success/failed), repo, branch, message, and full command output. The log shows the last 100 entries. You can clear it with the **Clear Log** button.
+Each deployment is logged with timestamp, status, repo, branch, and full command output (last 100 entries).
 
-## Security
+## File Structure
 
-- **Webhook payloads** are verified via HMAC-SHA256 using your secret. Requests without a valid signature are rejected (HTTP 403).
-- **SSH keys** are encrypted with AES-256-GCM before being stored in `wp_options`. The encryption key is derived from your WordPress `AUTH_SALT`.
-- **Temporary key files** are written with `0600` permissions and deleted immediately after the deploy completes.
-- **Only users** with `manage_options` capability (admin) can access the settings page and trigger manual deploys.
-
-## Automation Tips
-
-### CI/CD Integration
-
-For a full pipeline, create a GitHub Actions workflow that runs build steps before triggering the deploy:
-
-```yaml
-name: Build & Deploy
-on:
-  push:
-    branches: [main]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: npm ci
-      - name: Build assets
-        run: npm run build
-      - name: Commit built assets
-        run: |
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git add -A
-          git commit -m "Build assets [skip ci]" || true
-          git push
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+```
+github-auto-deploy/
+├── github-auto-deploy.php       — Plugin bootstrap
+├── assets/admin.js              — Admin AJAX (repo list, deploy key, webhook)
+├── .gitignore
+├── README.md
+└── includes/
+    ├── class-crypto.php         — AES-256-GCM encryption for tokens/keys
+    ├── class-deployer.php       — Git clone/pull via SSH key
+    ├── class-github-api.php     — GitHub OAuth + REST API wrapper
+    ├── class-webhook.php        — REST endpoint for GitHub push events
+    └── class-admin.php          — Settings page with OAuth flow
 ```
 
-The push from GitHub Actions triggers the plugin's webhook, which deploys the built repo to your server.
+## What's Stored in the Database
 
-### Multiple Repos
+All stored encrypted (AES-256-GCM) in the `wp_options` table:
 
-For sites with multiple repos (separate theme, plugin, mu-plugin repos), install the plugin once but configure different instances by:
+| Key | Value |
+|---|---|
+| `ghad_settings` | OAuth tokens, SSH key, repo config, webhook config |
+| `ghad_deploy_log` | Last 100 deployment logs |
 
-1. Creating separate plugin instances in `/wp-content/mu-plugins/` with different settings
-2. Or manually updating the options array for different deploy configs via `wp-cli`:
-
-```bash
-wp option update ghad_settings '{"repo_url":"git@github.com:user/repo2.git","branch":"main","local_path":"/path/to/other","ssh_key":"...","webhook_secret":"..."}'
-```
+The encryption key is derived from your WordPress `AUTH_SALT`.
 
 ## Troubleshooting
 
 | Problem | Likely Cause | Solution |
 |---|---|---|
-| **"Invalid signature" (403)** | Webhook secret mismatch | Verify secret matches between plugin settings and GitHub webhook config |
-| **Deploy fails — "Host key verification failed"** | Server hasn't connected to GitHub before | Run `ssh-keyscan github.com >> ~/.ssh/known_hosts` on the server (once) |
-| **"Permission denied (publickey)"** | SSH key not added to GitHub deploy keys | Add the public key to GitHub repo → Settings → Deploy keys |
-| **"Command exited with code 128"** | Git error (permissions, network) | Check the log details for the full error |
-| **No webhook received** | Server not publicly accessible | Use ngrok for local dev; ensure live site accepts POST requests to the REST API endpoint |
-| **Plugin settings page blank** | PHP error or missing OpenSSL | Verify `openssl` extension is loaded (`php -m \| grep openssl`) |
-
-## Local Development
-
-To test locally, use [ngrok](https://ngrok.com/) to expose your local WordPress site:
-
-```bash
-ngrok http 80
-```
-
-Then use the ngrok URL (e.g., `https://abc123.ngrok.io/wp-json/gh-deploy/v1/webhook`) as the webhook payload URL in GitHub.
+| **"Callback URL mismatch"** | OAuth App callback URL doesn't match | Copy the exact URL from the plugin settings page into your GitHub OAuth App |
+| **"Git not installed"** | Server lacks git | Run `apt install git` or `yum install git` on the server |
+| **Deploy key fails** | `exec()` disabled or `ssh-keygen` missing | Enable `exec()` in PHP, ensure `ssh-keygen` is available |
+| **"Permission denied" on deploy** | SSH key doesn't match repo | Re-generate the deploy key |
+| **Webhook not firing** | Server not publicly accessible | Use ngrok for local dev; ensure GitHub can reach your server |
 
 ## Changelog
 
+### 2.0.0
+- OAuth-based setup — connect GitHub account, pick repo from dropdown
+- Auto-generate SSH deploy key and install on GitHub
+- Auto-create webhook on GitHub
+- Token and SSH key encrypted with AES-256-GCM
+- Simplified settings page with guided flow
+
 ### 1.0.0
-- Initial release
-- Webhook-based auto-deploy with HMAC-SHA256 verification
-- SSH key auth (encrypted storage)
-- Manual deploy button
-- Deployment log with last 100 entries
-- Admin settings page
+- Manual webhook + SSH key setup
+- Basic deploy, log, and admin
 
 ## License
 
