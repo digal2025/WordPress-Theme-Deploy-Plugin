@@ -3,7 +3,7 @@
  * Plugin Name: GitHub Auto Deploy
  * Plugin URI:  https://github.com/digal2025/WordPress-Theme-Deploy-Plugin
  * Description: Auto-deploy themes/plugins from GitHub on push. OAuth-based setup — just connect your GitHub account, pick a repo, and go.
- * Version:     2.0.0
+ * Version:     2.0.1
  * Author:      Simplicity Digital
  * License:     GPL-2.0+
  * Text Domain: github-auto-deploy
@@ -11,7 +11,7 @@
 
 defined('ABSPATH') || exit;
 
-define('GHAD_VERSION', '2.0.0');
+define('GHAD_VERSION', '2.0.1');
 define('GHAD_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('GHAD_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('GHAD_OPTION_KEY', 'ghad_settings');

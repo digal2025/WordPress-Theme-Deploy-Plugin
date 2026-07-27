@@ -99,6 +99,14 @@ The encryption key is derived from your WordPress `AUTH_SALT`.
 
 ## Changelog
 
+### 2.0.1
+- Fixed Client Secret overwritten by placeholder on re-save
+- Fixed OAuth redirect URI missing `ghad_oauth=1` param
+- Added AJAX save for repo settings (no form submit)
+- Added Detect Themes button to auto-fill local path
+- Added AJAX auto-fetch repos on page load after connect
+- Self-updater now checks GitHub releases for updates
+
 ### 2.0.0
 - OAuth-based setup — connect GitHub account, pick repo from dropdown
 - Auto-generate SSH deploy key and install on GitHub
