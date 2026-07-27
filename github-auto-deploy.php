@@ -22,6 +22,9 @@ require_once GHAD_PLUGIN_DIR . 'includes/class-deployer.php';
 require_once GHAD_PLUGIN_DIR . 'includes/class-github-api.php';
 require_once GHAD_PLUGIN_DIR . 'includes/class-webhook.php';
 require_once GHAD_PLUGIN_DIR . 'includes/class-admin.php';
+require_once GHAD_PLUGIN_DIR . 'includes/class-updater.php';
+
+new GHAD_Updater(__FILE__);
 
 class GitHub_Auto_Deploy {
 
