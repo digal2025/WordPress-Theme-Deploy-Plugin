@@ -72,10 +72,12 @@ class GHAD_Admin {
             return;
         }
 
+        $settings_uri = admin_url('tools.php?page=github-auto-deploy');
+
         $state = $_GET['state'];
         $stored = get_transient('ghad_oauth_state');
         if (!$stored || $stored !== $state) {
-            wp_redirect(add_query_arg('ghad_msg', 'oauth_state_mismatch', wp_get_referer() ?: admin_url('tools.php?page=github-auto-deploy')));
+            wp_redirect(add_query_arg('ghad_msg', 'oauth_state_mismatch', $settings_uri));
             exit;
         }
         delete_transient('ghad_oauth_state');
@@ -84,10 +86,10 @@ class GHAD_Admin {
         $client_id     = $settings['client_id'] ?? '';
         $client_secret = GHAD_Crypto::decrypt($settings['client_secret'] ?? '');
         $code          = $_GET['code'];
-        $redirect_uri  = admin_url('tools.php?page=github-auto-deploy');
+        $redirect_uri  = $settings_uri . '&ghad_oauth=1';
 
         if (empty($client_id) || empty($client_secret)) {
-            wp_redirect(add_query_arg('ghad_msg', 'oauth_no_creds', $redirect_uri));
+            wp_redirect(add_query_arg('ghad_msg', 'oauth_no_creds', $settings_uri));
             exit;
         }
 
@@ -293,7 +295,7 @@ class GHAD_Admin {
         $client_id     = $settings['client_id'] ?? '';
         $connected     = !empty($settings['access_token']);
         $github_user   = $settings['github_user'] ?? '';
-        $redirect_uri  = admin_url('tools.php?page=github-auto-deploy');
+        $redirect_uri  = admin_url('tools.php?page=github-auto-deploy&ghad_oauth=1');
 
         $state = wp_generate_password(32, false);
         set_transient('ghad_oauth_state', $state, 600);
